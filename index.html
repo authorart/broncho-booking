@@ -482,27 +482,41 @@ async function init() {
   };
 
   try {
-    log('1. เริ่ม LIFF init...');
-    await liff.init({ liffId: LIFF_ID });
+    log('1. LIFF init...');
 
-    log('2. LIFF OK — ตรวจสอบ login...');
-    if (!liff.isLoggedIn()) { liff.login(); return; }
+    // ── Timeout 10 วินาที ──────────────────────────
+    await Promise.race([
+      liff.init({ liffId: LIFF_ID }),
+      new Promise((_, rej) =>
+        setTimeout(() => rej(new Error('LIFF init timeout — กรุณาปิดแล้วเปิดใหม่')), 10000)
+      )
+    ]);
 
-    log('3. Login OK — ดึง profile...');
+    log('2. ตรวจสอบ login...');
+
+    // ── ถ้ายังไม่ login ให้ redirect ──────────────
+    if (!liff.isLoggedIn()) {
+      liff.login({ redirectUri: window.location.href });
+      return;
+    }
+
+    log('3. ดึง profile...');
     const profile = await liff.getProfile();
     S.userId = profile.userId;
 
-    log('4. Profile OK — ตรวจสิทธิ์...');
+    log('4. ตรวจสิทธิ์...');
     const auth = await call('checkAuth', S.userId);
-
-    log('5. Auth response: ' + JSON.stringify(auth));
-    await new Promise(r => setTimeout(r, 1500)); // หน่วง 1.5 วิให้อ่านได้
-
-    if (!auth || !auth.authorized) { showEl('unauthorized'); return; }
+    if (!auth || !auth.authorized) {
+      showEl('unauthorized');
+      return;
+    }
     S.doctorName = auth.name;
 
+    // ── อ่าน page parameter ────────────────────────
     let urlPage = 'book';
-    try { urlPage = new URL(window.location.href).searchParams.get('page') || 'book'; } catch(_) {}
+    try {
+      urlPage = new URL(window.location.href).searchParams.get('page') || 'book';
+    } catch(_) {}
 
     switchView(urlPage);
 
@@ -510,8 +524,12 @@ async function init() {
     document.getElementById('loading').innerHTML =
       `<div style="padding:24px;text-align:center;color:#d32f2f">
         <div style="font-size:36px">⚠️</div>
-        <p style="font-weight:700;margin:8px 0">Error</p>
-        <p style="font-size:12px;word-break:break-all">${err.message || JSON.stringify(err)}</p>
+        <p style="font-weight:700;margin:8px 0">${err.message}</p>
+        <button onclick="init()"
+          style="margin-top:12px;padding:10px 24px;background:#0078d4;color:white;
+                 border:none;border-radius:8px;font-size:14px;cursor:pointer">
+          🔄 ลองใหม่
+        </button>
       </div>`;
   }
 }
