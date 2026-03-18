@@ -372,7 +372,7 @@ tr:hover td{background:#f8fafc}
 </main>
 
 <script>
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx-3CTkcugu3ptbgwXoVEuy3ttUcN_7LECAEI-xEUEaRzWOdbvLizw386j4ZRfCC_tQRg/exec'; // ← แก้ตรงนี้
+const SCRIPT_URL = 'YOUR_WEB_APP_URL'; // ← แก้ตรงนี้
 
 let charts = {}, currentPeriod = 'month', rawData = null;
 
@@ -394,22 +394,35 @@ function setPeriod(p) {
   if (p !== 'custom') fetchData();
 }
 
+// คืนค่า "yyyy-MM-dd" ตาม LOCAL time ของเครื่อง (ไม่ใช้ toISOString ซึ่งเป็น UTC)
+function localDateStr(d) {
+  const y   = d.getFullYear();
+  const m   = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return y + '-' + m + '-' + day;
+}
+
 function getDateRange() {
-  const now = new Date(), today = now.toISOString().slice(0,10);
-  if (currentPeriod==='day') return {from:today,to:today};
-  if (currentPeriod==='week') {
+  const now   = new Date();
+  const today = localDateStr(now);
+  if (currentPeriod === 'day') return {from:today, to:today};
+  if (currentPeriod === 'week') {
     const d = new Date(now);
-    d.setDate(d.getDate()-((d.getDay()+6)%7));
-    const mon = d.toISOString().slice(0,10);
-    d.setDate(d.getDate()+6);
-    return {from:mon,to:d.toISOString().slice(0,10)};
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    const mon = localDateStr(d);
+    d.setDate(d.getDate() + 6);
+    return {from:mon, to:localDateStr(d)};
   }
-  if (currentPeriod==='month') {
-    const y=now.getFullYear(),m=String(now.getMonth()+1).padStart(2,'0');
-    return {from:`${y}-${m}-01`,to:today};
+  if (currentPeriod === 'month') {
+    const y = now.getFullYear();
+    const m = String(now.getMonth() + 1).padStart(2, '0');
+    return {from: y+'-'+m+'-01', to:today};
   }
-  if (currentPeriod==='year') return {from:`${now.getFullYear()}-01-01`,to:today};
-  return {from:document.getElementById('date-from').value||'',to:document.getElementById('date-to').value||''};
+  if (currentPeriod === 'year') return {from: now.getFullYear()+'-01-01', to:today};
+  return {
+    from: document.getElementById('date-from').value || '',
+    to:   document.getElementById('date-to').value   || '',
+  };
 }
 
 // Fetch
@@ -427,8 +440,9 @@ async function loadDoctors() {
     const r = await callServer('getDoctorList',{});
     const sel = document.getElementById('filter-doctor');
     if (r.success) r.doctors.forEach(d=>{
+      const name = typeof d === 'object' ? d.name : d;
       const o=document.createElement('option');
-      o.value=d;o.textContent=d;sel.appendChild(o);
+      o.value=name; o.textContent=name; sel.appendChild(o);
     });
   } catch(_){}
 }
