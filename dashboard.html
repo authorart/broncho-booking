@@ -405,20 +405,33 @@ function localDateStr(d) {
 function getDateRange() {
   const now   = new Date();
   const today = localDateStr(now);
-  if (currentPeriod === 'day') return {from:today, to:today};
+
+  if (currentPeriod === 'day') {
+    return { from: today, to: today };
+  }
+
   if (currentPeriod === 'week') {
     const d = new Date(now);
-    d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); // วันจันทร์
     const mon = localDateStr(d);
-    d.setDate(d.getDate() + 6);
-    return {from:mon, to:localDateStr(d)};
+    d.setDate(d.getDate() + 6);                       // วันอาทิตย์
+    return { from: mon, to: localDateStr(d) };
   }
+
   if (currentPeriod === 'month') {
     const y = now.getFullYear();
-    const m = String(now.getMonth() + 1).padStart(2, '0');
-    return {from: y+'-'+m+'-01', to:today};
+    const m = now.getMonth();
+    const firstDay = localDateStr(new Date(y, m, 1));
+    const lastDay  = localDateStr(new Date(y, m + 1, 0)); // วันสุดท้ายของเดือน
+    return { from: firstDay, to: lastDay };
   }
-  if (currentPeriod === 'year') return {from: now.getFullYear()+'-01-01', to:today};
+
+  if (currentPeriod === 'year') {
+    const y = now.getFullYear();
+    return { from: y + '-01-01', to: y + '-12-31' };
+  }
+
+  // custom
   return {
     from: document.getElementById('date-from').value || '',
     to:   document.getElementById('date-to').value   || '',
