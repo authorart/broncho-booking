@@ -543,13 +543,23 @@ async function init() {
 // ══════════════════════════════════════════════════════
 //  GOOGLE SCRIPT RPC
 // ══════════════════════════════════════════════════════
-function call(fnName, ...args) {
-  return new Promise((res, rej) => {
-    let runner = google.script.run
-      .withSuccessHandler(res)
-      .withFailureHandler(rej);
-    runner[fnName](...args);
+// แทนด้วย:
+async function call(action, ...args) {
+  let params = {};
+  if (action === 'checkAuth')        params = { userId: args[0] };
+  if (action === 'getAvailableSlots')params = { weekOffset: args[0] };
+  if (action === 'createBooking')    params = args[0];
+  if (action === 'getUserBookings')  params = { userId: args[0] };
+  if (action === 'cancelBooking')    params = args[0];
+
+  const res = await fetch(SCRIPT_URL, {
+    method:   'POST',
+    headers:  { 'Content-Type': 'text/plain' },
+    body:     JSON.stringify({ action, params }),
+    redirect: 'follow',
   });
+  if (!res.ok) throw new Error('HTTP ' + res.status);
+  return res.json();
 }
 
 // ══════════════════════════════════════════════════════
