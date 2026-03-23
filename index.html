@@ -546,11 +546,11 @@ async function init() {
 // แทนด้วย:
 async function call(action, ...args) {
   let params = {};
-  if (action === 'checkAuth')        params = { userId: args[0] };
-  if (action === 'getAvailableSlots')params = { weekOffset: args[0] };
-  if (action === 'createBooking')    params = args[0];
-  if (action === 'getUserBookings')  params = { userId: args[0] };
-  if (action === 'cancelBooking')    params = args[0];
+  if (action === 'checkAuth')         params = { userId: args[0] };
+  if (action === 'getAvailableSlots') params = { weekOffset: args[0] };
+  if (action === 'createBooking')     params = args[0];
+  if (action === 'getUserBookings')   params = { userId: args[0] };
+  if (action === 'cancelBooking')     params = { eventId: args[0], userId: args[1], rowIndex: args[2] };
 
   const res = await fetch(SCRIPT_URL, {
     method:   'POST',
