@@ -642,7 +642,6 @@ function calcDuration() {
 function calcPrice() {
   if (S.priceManual) return;
 
-  // ถ้ายังไม่มี Price_List
   if (!S.priceList.length) {
     document.getElementById('price-breakdown').textContent =
       '⚠️ ยังไม่พบ Price_List — กรอกราคาเองได้';
@@ -655,48 +654,26 @@ function calcPrice() {
   if (!operation || !fluoroUsed) {
     document.getElementById('price-val').textContent = '—';
     document.getElementById('price-breakdown').textContent =
-      fluoroUsed ? '' : 'เลือก Fluoroscope ก่อนเพื่อคำนวณราคา';
+      !fluoroUsed ? 'เลือก Fluoroscope ก่อนเพื่อคำนวณราคา' : '';
     return;
   }
 
-  // แยก sub-procedures: "Bronchoscopy (BAL, TBBx)" → ['BAL','TBBx']
-  // "Bronchoscopy" → ['Bronchoscopy']
-  // "Pleuroscopy"  → ['Pleuroscopy']
-  let items = [];
-  const subMatch = operation.match(/\(([^)]+)\)/);
-  if (subMatch) {
-    items = subMatch[1].split(',').map(s => s.trim()).filter(Boolean);
-  } else {
-    items = [operation];
-  }
+  // ค้นหาจาก operation เต็มๆ ก่อน เช่น "Bronchoscopy (BAL)"
+  const entry = S.priceList.find(p =>
+    p.procedure.trim().toLowerCase() === operation.toLowerCase() &&
+    p.fluoroscope.trim() === fluoroUsed
+  );
 
-  let totalPrice = 0;
-  const breakdown = [];
-  const notFound  = [];
-
-  items.forEach(item => {
-    const entry = S.priceList.find(p =>
-      p.procedure.trim().toLowerCase() === item.toLowerCase() &&
-      p.fluoroscope.trim() === fluoroUsed
-    );
-    if (entry) {
-      totalPrice += entry.price;
-      breakdown.push(`${item} (${fluoroUsed}): ${entry.price.toLocaleString()} บาท`);
-    } else {
-      notFound.push(item);
-    }
-  });
-
-  // แสดงผล
-  if (totalPrice > 0) {
-    document.getElementById('price-val').textContent = totalPrice.toLocaleString();
-    document.getElementById('inp-price').value       = totalPrice;
+  if (entry) {
+    document.getElementById('price-val').textContent = entry.price.toLocaleString();
+    document.getElementById('inp-price').value       = entry.price;
     document.getElementById('price-breakdown').textContent =
-      breakdown.length > 1 ? breakdown.join(' + ') : '';
+      `${operation} (${fluoroUsed}): ${entry.price.toLocaleString()} บาท`;
   } else {
     document.getElementById('price-val').textContent = '—';
+    document.getElementById('inp-price').value       = '';
     document.getElementById('price-breakdown').textContent =
-      notFound.length ? `⚠️ ไม่พบราคาของ: ${notFound.join(', ')} (${fluoroUsed}) ใน Price_List` : '';
+      `⚠️ ไม่พบราคาของ "${operation}" (${fluoroUsed}) ใน Price_List`;
   }
 }
 
