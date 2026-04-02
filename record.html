@@ -640,49 +640,63 @@ function calcDuration() {
 //  PRICE CALCULATION
 // ══════════════════════════════════════════════
 function calcPrice() {
-  if (!S.priceList.length || S.priceManual) return;
+  if (S.priceManual) return;
 
-  const operation  = document.getElementById('inp-operation').value.trim();
-  const fluoroUsed = S.fluoroscope || 'ไม่ใช้';
-
-  if (!operation) {
-    document.getElementById('price-val').textContent = '—';
-    document.getElementById('price-breakdown').textContent = '';
+  // ถ้ายังไม่มี Price_List
+  if (!S.priceList.length) {
+    document.getElementById('price-breakdown').textContent =
+      '⚠️ ยังไม่พบ Price_List — กรอกราคาเองได้';
     return;
   }
 
-  // แยก sub-procedures ออกมา
-  // เช่น "Bronchoscopy (BAL, TBBx)" → ['BAL', 'TBBx']
-  // หรือ "Pleuroscopy" → ['Pleuroscopy']
+  const operation  = document.getElementById('inp-operation').value.trim();
+  const fluoroUsed = S.fluoroscope || '';
+
+  if (!operation || !fluoroUsed) {
+    document.getElementById('price-val').textContent = '—';
+    document.getElementById('price-breakdown').textContent =
+      fluoroUsed ? '' : 'เลือก Fluoroscope ก่อนเพื่อคำนวณราคา';
+    return;
+  }
+
+  // แยก sub-procedures: "Bronchoscopy (BAL, TBBx)" → ['BAL','TBBx']
+  // "Bronchoscopy" → ['Bronchoscopy']
+  // "Pleuroscopy"  → ['Pleuroscopy']
   let items = [];
   const subMatch = operation.match(/\(([^)]+)\)/);
   if (subMatch) {
-    items = subMatch[1].split(',').map(s => s.trim());
+    items = subMatch[1].split(',').map(s => s.trim()).filter(Boolean);
   } else {
-    items = [operation.trim()];
+    items = [operation];
   }
 
   let totalPrice = 0;
   const breakdown = [];
+  const notFound  = [];
 
   items.forEach(item => {
     const entry = S.priceList.find(p =>
-      p.procedure.toLowerCase() === item.toLowerCase() &&
-      p.fluoroscope === fluoroUsed
+      p.procedure.trim().toLowerCase() === item.toLowerCase() &&
+      p.fluoroscope.trim() === fluoroUsed
     );
     if (entry) {
       totalPrice += entry.price;
-      breakdown.push(`${item}: ${entry.price.toLocaleString()} บาท`);
+      breakdown.push(`${item} (${fluoroUsed}): ${entry.price.toLocaleString()} บาท`);
+    } else {
+      notFound.push(item);
     }
   });
 
-  document.getElementById('price-val').textContent =
-    totalPrice > 0 ? totalPrice.toLocaleString() : '—';
-  document.getElementById('price-breakdown').textContent =
-    breakdown.length > 1 ? breakdown.join(' + ') : '';
-
+  // แสดงผล
   if (totalPrice > 0) {
-    document.getElementById('inp-price').value = totalPrice;
+    document.getElementById('price-val').textContent = totalPrice.toLocaleString();
+    document.getElementById('inp-price').value       = totalPrice;
+    document.getElementById('price-breakdown').textContent =
+      breakdown.length > 1 ? breakdown.join(' + ') : '';
+  } else {
+    document.getElementById('price-val').textContent = '—';
+    document.getElementById('price-breakdown').textContent =
+      notFound.length ? `⚠️ ไม่พบราคาของ: ${notFound.join(', ')} (${fluoroUsed}) ใน Price_List` : '';
   }
 }
 
