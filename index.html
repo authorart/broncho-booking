@@ -2,21 +2,25 @@
 <html lang="th">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>จองห้องส่องกล้องหลอดลม</title>
   <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <script src="config.js"></script>
+  <script src="common.js"></script>
+  <script src="program.js"></script>
   <style>
     /* ── Design Tokens ─────────────────────────────────────── */
     :root {
-      --blue:         #0078d4;
-      --blue-light:   #e8f4fd;
-      --blue-dark:    #005a9e;
-      --green:        #107c10;
-      --green-light:  #dff0d8;
+      --blue:         #0056D2;
+      --blue-light:   #E0F2F1;
+      --blue-dark:    #00429F;
+      --green:        #00695C;
+      --green-light:  #E0F2F1;
       --red:          #d32f2f;
       --red-light:    #fdecea;
-      --orange:       #e65100;
-      --grey-bg:      #f3f6fa;
+      --orange:       #FF9800;
+      --grey-bg:      #F5F7FA;
       --grey-border:  #dde3ea;
       --text:         #1a2332;
       --text-light:   #6b7c93;
@@ -29,7 +33,7 @@
     /* ── Reset ──────────────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     body {
-      font-family: -apple-system, 'Sarabun', BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-family: 'Inter', 'Sarabun', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       background: var(--grey-bg);
       color: var(--text);
       min-height: 100vh;
@@ -54,11 +58,11 @@
 
     /* ── Header ─────────────────────────────────────────────── */
     .header {
-      background: linear-gradient(135deg, var(--blue-dark) 0%, var(--blue) 100%);
+      background: linear-gradient(135deg, var(--blue) 0%, #00A3FF 100%);
       color: #fff;
       padding: 18px 16px 14px;
-      position: sticky; top: 0; z-index: 50;
-      box-shadow: 0 2px 8px rgba(0,120,212,.25);
+      position: sticky; top: var(--bpnav-h, 0px); z-index: 50;
+      box-shadow: 0 2px 8px rgba(0,86,210,.25);
     }
     .header-title { font-size: 16px; font-weight: 700; }
     .header-sub   { font-size: 12px; opacity: .80; margin-top: 3px; }
@@ -132,9 +136,9 @@
       transition: all .2s;
     }
     .slot-btn .slot-sub { font-size: 10px; font-weight: 400; margin-top: 3px; display: block; }
-    .slot-btn.available  { border-color: #2e7d32; color: #1b5e20; background: var(--green-light); }
+    .slot-btn.available  { border-color: #00695C; color: #004D40; background: var(--green-light); }
     .slot-btn.available:hover,
-    .slot-btn.available.selected { background: #2e7d32; color: white; border-color: #2e7d32; }
+    .slot-btn.available.selected { background: #00695C; color: white; border-color: #00695C; }
     .slot-btn.booked     { border-color: #ffcdd2; color: #b71c1c; background: var(--red-light); cursor: not-allowed; opacity: .65; }
 
     /* ── Back button ────────────────────────────────────────── */
@@ -273,8 +277,9 @@
 <!-- ║  LOADING                     ║ -->
 <!-- ╚══════════════════════════════╝ -->
 <div id="loading">
-  <div class="spinner"></div>
-  <p style="color:var(--text-light);font-size:14px">กำลังโหลด...</p>
+  <div class="spinner" id="load-spinner"></div>
+  <p id="load-status" style="color:var(--text-light);font-size:14px;text-align:center;padding:0 24px">กำลังโหลด...</p>
+  <button class="btn btn-primary hidden" id="btn-retry" style="max-width:240px" onclick="init()">🔄 ลองใหม่</button>
 </div>
 
 <!-- ╔══════════════════════════════╗ -->
@@ -291,7 +296,7 @@
 <!-- ╚══════════════════════════════════════════════════╝ -->
 <div id="view-book" class="hidden">
   <div class="header">
-    <div class="header-title">📅 จองห้องส่องกล้องหลอดลม</div>
+    <div class="header-title" id="book-title">📅 จองห้องส่องกล้องหลอดลม</div>
     <div class="header-sub" id="book-doctor-lbl"></div>
   </div>
   <div class="content">
@@ -304,6 +309,7 @@
 
     <!-- ─── Step 1: เลือกวันที่ ─────────────────────── -->
     <div id="step1">
+      <button class="btn-back edit-only hidden" onclick="keepOriginalSlot()">↩ ไม่เปลี่ยนวัน-เวลา (กลับไปแก้รายละเอียด)</button>
       <div class="card">
         <div class="card-title">🗓 เลือกวันที่</div>
         <div class="week-nav">
@@ -322,6 +328,7 @@
     <!-- ─── Step 2: เลือกเวลา ───────────────────────── -->
     <div id="step2" class="hidden">
       <button class="btn-back" onclick="goToStep(1)">‹ เปลี่ยนวันที่</button>
+      <button class="btn-back edit-only hidden" onclick="keepOriginalSlot()">↩ ไม่เปลี่ยนวัน-เวลา (กลับไปแก้รายละเอียด)</button>
       <div class="card">
         <div class="card-title">🕐 เลือกเวลา</div>
         <div id="selected-date-label" style="font-size:15px;font-weight:700;margin-bottom:12px"></div>
@@ -335,6 +342,11 @@
     <!-- ─── Step 3: กรอกรายละเอียด ─────────────────── -->
     <div id="step3" class="hidden">
       <button class="btn-back" onclick="goToStep(2)">‹ เปลี่ยนเวลา</button>
+      <div id="edit-banner" class="hidden" style="background:#fff7e0;border:1px solid #f3d38a;color:#7a5200;border-radius:10px;padding:10px 12px;margin-bottom:12px;font-size:13px;line-height:1.6">
+        ✏️ กำลังแก้ไขการจอง — แก้ข้อมูลด้านล่าง หรือ
+        <a href="#" onclick="goToStep(1);return false" style="color:#7a5200;font-weight:700">เปลี่ยนวัน-เวลา</a> ·
+        <a href="#" onclick="cancelEdit();return false" style="color:#7a5200;font-weight:700">ออกจากการแก้ไข</a>
+      </div>
       <div class="card">
         <div class="card-title">🔬 รายละเอียดการจอง</div>
 
@@ -413,14 +425,17 @@
       <button class="btn btn-primary" id="btn-show-confirm" onclick="openBookingModal()" disabled>
         ตรวจสอบและยืนยัน →
       </button>
+      <button class="btn btn-danger edit-only hidden" id="btn-edit-cancel" onclick="cancelFromEdit()" style="margin-top:10px">
+        ❌ ยกเลิกการจองนี้
+      </button>
     </div>
 
     <!-- ─── Step 4: สำเร็จ ─────────────────────────── -->
     <div id="step4" class="hidden">
       <div class="success-wrap">
         <div class="success-icon">✅</div>
-        <div class="success-title">จองสำเร็จ!</div>
-        <div class="success-sub">ระบบบันทึกการจองและแจ้ง Admin เรียบร้อยแล้ว</div>
+        <div class="success-title" id="success-title">จองสำเร็จ!</div>
+        <div class="success-sub" id="success-sub">ระบบบันทึกการจองและแจ้ง Admin เรียบร้อยแล้ว</div>
       </div>
       <div class="card" id="success-detail"></div>
       <button class="btn btn-primary" onclick="resetBook()">📅 จองเพิ่มเติม</button>
@@ -476,17 +491,16 @@
 
 
 <script>
-// ══════════════════════════════════════════════════════
-//  ⚙️  CONFIG — แก้ LIFF_ID ให้ตรงกับที่สร้างไว้
-// ══════════════════════════════════════════════════════
-const LIFF_ID = '2009506303-fww7T2D0';  // ← แก้ตรงนี้
-const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbx-3CTkcugu3ptbgwXoVEuy3ttUcN_7LECAEI-xEUEaRzWOdbvLizw386j4ZRfCC_tQRg/exec'; // ← URL จาก Deploy > Web App
+const { esc } = Broncho;
+const PROGRAM = new URLSearchParams(location.search).get('mode') === 'program';
 
 // ══════════════════════════════════════════════════════
 //  STATE
 // ══════════════════════════════════════════════════════
 const S = {
-  userId:        null,
+  prefetched:    null,    // slots ที่โหลดขนานกับ checkAuth
+  myBookings:    [],
+  editTarget:    null,    // { rowIndex, origSlot } เมื่อกำลังแก้ไขการจอง
   doctorName:    null,
   weekOffset:    0,
   allSlots:      [],      // raw slot array from server
@@ -510,56 +524,39 @@ const SUB_PROCS = [
 //  INIT
 // ══════════════════════════════════════════════════════
 async function init() {
+  const status = t => { document.getElementById('load-status').textContent = t; };
+  showEl('loading');
+  document.getElementById('load-spinner').classList.remove('hidden');
+  document.getElementById('btn-retry').classList.add('hidden');
   try {
-    await liff.init({ liffId: LIFF_ID });
-
-    if (!liff.isLoggedIn()) { liff.login(); return; }
-
-    const profile = await liff.getProfile();
-    S.userId = profile.userId;
-
-    // Check authorization
-    const auth = await call('checkAuth', S.userId);
-    if (!auth || !auth.authorized) {
-      showEl('unauthorized'); return;
+    if (PROGRAM) {                                       // เปิดจากโปรแกรม: login ด้วย username/password (ไม่ใช้ LIFF)
+      await Broncho.programStart({ page: Broncho.getPage() === 'book' ? 'book' : 'my' });
+    } else {
+      if (!(await Broncho.startLiff(status))) return;    // กำลัง redirect ไป login
+      const goPage = Broncho.getPage();
+      if (goPage === 'record' || goPage === 'dashboard') { status('กำลังเปิดหน้า...'); location.replace(goPage + '.html'); return; }
     }
+    status('กำลังตรวจสอบสิทธิ์และโหลดตาราง...');
+    const slowTimer = setTimeout(() => status('เซิร์ฟเวอร์กำลังเริ่มทำงาน ครั้งแรกอาจใช้เวลาถึง 30–40 วินาที กรุณารอสักครู่...'), 8000);
+    const page = Broncho.getPage();
+    // ขนานกัน: ตรวจสิทธิ์ + โหลดตารางว่าง (เดิมทำทีละขั้น)
+    const [auth, slots] = await Promise.all([
+      Broncho.api('checkAuth'),
+      page === 'book' ? Broncho.api('getAvailableSlots', { weekOffset: 0 }).catch(() => null) : null,
+    ]);
+    clearTimeout(slowTimer);
+    if (!auth.success) throw new Error(auth.error || 'SERVER_ERROR');
+    if (!auth.authorized) { showEl('unauthorized'); return; }
     S.doctorName = auth.name;
-
-    // Determine page from URL param ?page=
-    const page = new URLSearchParams(liff.getDecodedIDToken ? '' :
-      window.location.search).get('page') || 'book';
-    // Also support LIFF context URL
-    const ctx = liff.getContext ? liff.getContext() : null;
-    let urlPage = 'book';
-    try { urlPage = new URL(window.location.href).searchParams.get('page') || 'book'; } catch(_){}
-
-    switchView(urlPage);
-
+    S.prefetched = (slots && slots.success) ? slots : null;
+    switchView(page);
   } catch (err) {
-    alert('เกิดข้อผิดพลาดในการเริ่มต้น: ' + err.message);
+    if (typeof slowTimer !== 'undefined') clearTimeout(slowTimer);
+    document.getElementById('load-spinner').classList.add('hidden');
+    status(Broncho.errorText(err));
+    document.getElementById('btn-retry').classList.remove('hidden');
+    showEl('loading');
   }
-}
-
-// ══════════════════════════════════════════════════════
-//  GOOGLE SCRIPT RPC
-// ══════════════════════════════════════════════════════
-// แทนด้วย:
-async function call(action, ...args) {
-  let params = {};
-  if (action === 'checkAuth')         params = { userId: args[0] };
-  if (action === 'getAvailableSlots') params = { weekOffset: args[0] };
-  if (action === 'createBooking')     params = args[0];
-  if (action === 'getUserBookings')   params = { userId: args[0] };
-  if (action === 'cancelBooking')     params = { eventId: args[0], userId: args[1], rowIndex: args[2] };
-
-  const res = await fetch(SCRIPT_URL, {
-    method:   'POST',
-    headers:  { 'Content-Type': 'text/plain' },
-    body:     JSON.stringify({ action, params }),
-    redirect: 'follow',
-  });
-  if (!res.ok) throw new Error('HTTP ' + res.status);
-  return res.json();
 }
 
 // ══════════════════════════════════════════════════════
@@ -575,7 +572,9 @@ function switchView(page) {
     showEl('view-book');
     document.getElementById('book-doctor-lbl').textContent = '👨‍⚕️ ' + S.doctorName;
     goToStep(1);
-    loadSlots();
+    const pf = prefillFromUrl();
+    if (pf) S.weekOffset = pf.weekOffset;
+    loadSlots().then(() => { if (pf) applyPrefill(pf); });
   } else {
     const isCancel = page === 'cancel';
     showEl('view-my-bookings');
@@ -598,7 +597,25 @@ function goToStep(n) {
     if (i < n)      el.classList.add('done');
     else if (i === n) el.classList.add('active');
   });
+  document.querySelectorAll('.edit-only').forEach(el => el.classList.toggle('hidden', !S.editTarget));
   if (n === 2 && S.selectedDate) renderSlotGrid();
+}
+
+// โหมดแก้ไข: เปลี่ยนใจไม่เปลี่ยนวัน-เวลา → คืนค่าวัน-เวลาเดิมแล้วกลับไปหน้ารายละเอียด
+function keepOriginalSlot() {
+  if (!S.editTarget) return;
+  const o = S.editTarget.origSlot;
+  S.selectedDate = o.dateKey;
+  S.selectedSlot = o;
+  document.getElementById('slot-summary-text').textContent = '🗓 ' + o.dateLabel + '  ⏰ ' + o.timeStr;
+  goToStep(3);
+  validateStep3();
+}
+
+// โหมดแก้ไข: ยกเลิกการจองจากหน้าแก้ไขเลย (ใช้ modal ยืนยันเดิม)
+function cancelFromEdit() {
+  if (!S.editTarget) return;
+  openCancelModal(S.editTarget.booking);
 }
 
 // ══════════════════════════════════════════════════════
@@ -610,21 +627,45 @@ async function loadSlots() {
   updateWeekLabel();
 
   try {
-    const res = await call('getAvailableSlots', S.weekOffset);
+    let res = null;
+    if (S.prefetched && S.weekOffset === 0) { res = S.prefetched; S.prefetched = null; }
+    else res = await Broncho.api('getAvailableSlots', { weekOffset: S.weekOffset });
     if (!res.success) throw new Error(res.error);
     S.allSlots = res.slots;
     renderDateList();
   } catch (err) {
     document.getElementById('date-list').innerHTML =
-      `<p style="color:var(--red);text-align:center;padding:20px">เกิดข้อผิดพลาด: ${err.message}</p>`;
+      `<div style="text-align:center;padding:20px"><p style="color:var(--red)">${esc(Broncho.errorText(err))}</p>
+       <button class="btn btn-outline" style="max-width:200px" onclick="loadSlots()">🔄 ลองใหม่</button></div>`;
   }
+}
+
+// เปิดจากปุ่ม slot ว่างใน Dashboard: ?date=yyyy-MM-dd&time=HH:mm → เลือกวัน/เวลาให้แล้วไปขั้นกรอกรายละเอียด
+function prefillFromUrl() {
+  const q = new URLSearchParams(location.search);
+  const date = q.get('date'), time = q.get('time');
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date || '') || !/^\d{2}:\d{2}$/.test(time || '')) return null;
+  const now = new Date(), today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.floor((new Date(date + 'T00:00:00') - today) / 86400000);
+  if (days < 0) return null;
+  return { date, time, weekOffset: Math.min(7, Math.floor(days / 14)) };
+}
+function applyPrefill(pf) {
+  if (S.weekOffset !== pf.weekOffset) return;
+  const day = S.allSlots.filter(s => s.dateKey === pf.date);
+  const idx = day.findIndex(s => s.timeStr.slice(0, 5) === pf.time);
+  if (idx < 0 || !day[idx].available) { Broncho.toast('slot ' + pf.time + ' วันที่เลือกไม่ว่างแล้ว กรุณาเลือกใหม่'); if (day.length) pickDate(pf.date); return; }
+  pickDate(pf.date);
+  pickSlot(idx);
+  goToStep(3);
 }
 
 function updateWeekLabel() {
   const w = S.weekOffset;
   document.getElementById('week-label').textContent =
-    w === 0 ? '4 สัปดาห์ถัดไป' : `ล่วงหน้า ${w*4+1}–${(w+1)*4} สัปดาห์`;
+    w === 0 ? '2 สัปดาห์ถัดไป' : `ล่วงหน้า ${w*2+1}–${(w+1)*2} สัปดาห์`;
   document.getElementById('btn-prev-week').disabled = w <= 0;
+  document.getElementById('btn-next-week').disabled = w >= 7;
 }
 
 function changeWeek(d) {
@@ -660,9 +701,9 @@ function renderDateList() {
     else             { infoColor = 'var(--green)';  infoText = `ว่าง ${avail}/${total} slot`; }
 
     html += `
-      <div class="date-card ${S.selectedDate === key ? 'selected' : ''}" onclick="pickDate('${key}')">
+      <div class="date-card ${S.selectedDate === key ? 'selected' : ''}" onclick="pickDate('${esc(key)}')">
         <div>
-          <div class="dc-date">📅 ${label}</div>
+          <div class="dc-date">📅 ${esc(label)}</div>
         </div>
         <div class="dc-info" style="color:${infoColor}">● ${infoText}</div>
       </div>`;
@@ -692,13 +733,13 @@ function renderSlotGrid() {
       html += `
         <button class="slot-btn available ${isSel ? 'selected' : ''}"
                 onclick="pickSlot(${idx})">
-          ${slot.timeStr}
+          ${esc(slot.timeStr)}
           <span class="slot-sub">🟢 ว่าง</span>
         </button>`;
     } else {
       html += `
         <button class="slot-btn booked" disabled>
-          ${slot.timeStr}
+          ${esc(slot.timeStr)}
           <span class="slot-sub">🔴 เต็ม</span>
         </button>`;
     }
@@ -772,7 +813,7 @@ function selectFluoro(val) {
 function validateStep3() {
   const hn      = document.getElementById('inp-hn').value.trim();
   const patient = document.getElementById('inp-patient').value.trim();
-  let ok = !!S.procedure && hn && patient && !!S.anesthesia && !!S.fluoroscope;
+  let ok = !!S.procedure && /^[A-Za-z0-9\-]{1,15}$/.test(hn) && !!patient && !!S.anesthesia && !!S.fluoroscope;
   if (S.procedure === 'Bronchoscopy' && S.subProcs.length === 0) ok = false;
   document.getElementById('btn-show-confirm').disabled = !ok;
 }
@@ -787,21 +828,23 @@ function buildProcTitle() {
 }
 
 function openBookingModal() {
+  if (!S.selectedSlot && S.editTarget) S.selectedSlot = S.editTarget.origSlot;
+  if (!S.selectedSlot) return;
   const hn      = document.getElementById('inp-hn').value.trim();
   const patient = document.getElementById('inp-patient').value.trim();
   const proc    = buildProcTitle();
 
   const diag = document.getElementById('inp-diagnosis').value.trim();
   document.getElementById('modal-confirm-body').innerHTML = `
-    <div class="confirm-row"><span class="confirm-lbl">แพทย์</span>      <span class="confirm-val">${S.doctorName}</span></div>
-    <div class="confirm-row"><span class="confirm-lbl">วันที่</span>      <span class="confirm-val">${S.selectedSlot.dateLabel}</span></div>
-    <div class="confirm-row"><span class="confirm-lbl">เวลา</span>        <span class="confirm-val">${S.selectedSlot.timeStr}</span></div>
-    <div class="confirm-row"><span class="confirm-lbl">หัตถการ</span>     <span class="confirm-val">${proc}</span></div>
-    <div class="confirm-row"><span class="confirm-lbl">HN</span>          <span class="confirm-val">${hn}</span></div>
-    <div class="confirm-row"><span class="confirm-lbl">ผู้ป่วย</span>     <span class="confirm-val">${patient}</span></div>
-    ${diag ? `<div class="confirm-row"><span class="confirm-lbl">Diagnosis</span>  <span class="confirm-val">${diag}</span></div>` : ''}
-    <div class="confirm-row"><span class="confirm-lbl">Anesthesia</span>  <span class="confirm-val">${S.anesthesia}</span></div>
-    <div class="confirm-row"><span class="confirm-lbl">Fluoroscopy</span> <span class="confirm-val">${S.fluoroscope}</span></div>
+    <div class="confirm-row"><span class="confirm-lbl">แพทย์</span>      <span class="confirm-val">${esc(S.doctorName)}</span></div>
+    <div class="confirm-row"><span class="confirm-lbl">วันที่</span>      <span class="confirm-val">${esc(S.selectedSlot.dateLabel)}</span></div>
+    <div class="confirm-row"><span class="confirm-lbl">เวลา</span>        <span class="confirm-val">${esc(S.selectedSlot.timeStr)}</span></div>
+    <div class="confirm-row"><span class="confirm-lbl">หัตถการ</span>     <span class="confirm-val">${esc(proc)}</span></div>
+    <div class="confirm-row"><span class="confirm-lbl">HN</span>          <span class="confirm-val">${esc(hn)}</span></div>
+    <div class="confirm-row"><span class="confirm-lbl">ผู้ป่วย</span>     <span class="confirm-val">${esc(patient)}</span></div>
+    ${diag ? `<div class="confirm-row"><span class="confirm-lbl">Diagnosis</span>  <span class="confirm-val">${esc(diag)}</span></div>` : ''}
+    <div class="confirm-row"><span class="confirm-lbl">Anesthesia</span>  <span class="confirm-val">${esc(S.anesthesia)}</span></div>
+    <div class="confirm-row"><span class="confirm-lbl">Fluoroscopy</span> <span class="confirm-val">${esc(S.fluoroscope)}</span></div>
   `;
   document.getElementById('modal-confirm').classList.remove('hidden');
 }
@@ -814,8 +857,9 @@ async function submitBooking() {
   const patient = document.getElementById('inp-patient').value.trim();
 
   try {
-    const res = await call('createBooking', {
-      userId:         S.userId,
+    const editing = S.editTarget;
+    const res = await Broncho.api(editing ? 'updateBooking' : 'createBooking', {
+      rowIndex:       editing ? editing.rowIndex : undefined,
       slotStart:      S.selectedSlot.startISO,
       slotEnd:        S.selectedSlot.endISO,
       procedure:      S.procedure,
@@ -831,34 +875,39 @@ async function submitBooking() {
 
     if (!res.success) {
       if (res.error === 'SLOT_TAKEN') {
-        alert('⚠️ slot นี้ถูกจองไปแล้ว กรุณาเลือก slot ใหม่');
+        Broncho.toast('⚠️ slot นี้ถูกจองไปแล้ว กรุณาเลือก slot ใหม่', true);
         S.selectedSlot = null;
         await loadSlots();
         goToStep(2);
       } else {
-        alert('เกิดข้อผิดพลาด: ' + res.error);
+        Broncho.toast(Broncho.errorText(new Error(res.error)), true);
       }
       return;
     }
 
     // Show success
+    document.getElementById('success-title').textContent = editing ? 'แก้ไขสำเร็จ!' : 'จองสำเร็จ!';
+    document.getElementById('success-sub').textContent   = editing ? 'ระบบบันทึกการแก้ไขและแจ้ง Admin เรียบร้อยแล้ว' : 'ระบบบันทึกการจองและแจ้ง Admin เรียบร้อยแล้ว';
+    exitEditMode();
     document.getElementById('success-detail').innerHTML = `
-      <div class="confirm-row"><span class="confirm-lbl">แพทย์</span>  <span class="confirm-val">${res.doctorName}</span></div>
-      <div class="confirm-row"><span class="confirm-lbl">วันเวลา</span> <span class="confirm-val">${res.dateTimeStr} น.</span></div>
-      <div class="confirm-row"><span class="confirm-lbl">หัตถการ</span> <span class="confirm-val">${res.eventTitle}</span></div>
-      <div class="confirm-row"><span class="confirm-lbl">HN</span>      <span class="confirm-val">${res.hn}</span></div>
-      <div class="confirm-row"><span class="confirm-lbl">ผู้ป่วย</span> <span class="confirm-val">${res.patientName}</span></div>
+      <div class="confirm-row"><span class="confirm-lbl">แพทย์</span>  <span class="confirm-val">${esc(res.doctorName)}</span></div>
+      <div class="confirm-row"><span class="confirm-lbl">วันเวลา</span> <span class="confirm-val">${esc(res.dateTimeStr)} น.</span></div>
+      <div class="confirm-row"><span class="confirm-lbl">หัตถการ</span> <span class="confirm-val">${esc(res.eventTitle)}</span></div>
+      <div class="confirm-row"><span class="confirm-lbl">HN</span>      <span class="confirm-val">${esc(res.hn)}</span></div>
+      <div class="confirm-row"><span class="confirm-lbl">ผู้ป่วย</span> <span class="confirm-val">${esc(res.patientName)}</span></div>
     `;
     goToStep(4);
 
   } catch (err) {
-    alert('เกิดข้อผิดพลาด: ' + err.message);
+    closeModal('modal-confirm');
+    Broncho.toast(Broncho.errorText(err) + ' — โปรดตรวจ "การจองของฉัน" ก่อนจองซ้ำ', true);
   } finally {
     btn.disabled = false; btn.textContent = '✅ ยืนยัน';
   }
 }
 
 function resetBook() {
+  exitEditMode();
   S.selectedDate = null; S.selectedSlot = null;
   S.procedure = null; S.subProcs = [];
   document.getElementById('inp-hn').value = '';
@@ -873,6 +922,46 @@ function resetBook() {
 }
 
 // ══════════════════════════════════════════════════════
+//  EDIT BOOKING
+// ══════════════════════════════════════════════════════
+function exitEditMode() {
+  S.editTarget = null;
+  document.getElementById('edit-banner').classList.add('hidden');
+  document.getElementById('book-title').textContent = '📅 จองห้องส่องกล้องหลอดลม';
+}
+
+function cancelEdit() {
+  exitEditMode();
+  resetBook();
+  switchView('my');
+}
+
+function startEdit(b) {
+  const origSlot = { startISO: b.startISO, endISO: b.endISO, dateLabel: b.dateLabel, timeStr: b.timeStr, dateKey: b.dateKey };
+  S.editTarget   = { rowIndex: b.rowIndex, origSlot, booking: b };
+  S.selectedDate = b.dateKey;
+  S.selectedSlot = origSlot;
+
+  showEl('view-book');
+  document.getElementById('book-doctor-lbl').textContent = '👨‍⚕️ ' + S.doctorName;
+  document.getElementById('book-title').textContent = '✏️ แก้ไขการจอง';
+  document.getElementById('edit-banner').classList.remove('hidden');
+  document.getElementById('slot-summary-text').textContent = '🗓 ' + b.dateLabel + '  ⏰ ' + b.timeStr;
+
+  document.getElementById('inp-hn').value        = b.hn;
+  document.getElementById('inp-patient').value   = b.patientName;
+  document.getElementById('inp-diagnosis').value = b.diagnosis || '';
+  selectProc(b.procedureBase === 'Bronchoscopy' ? 'Bronchoscopy' : 'Pleuroscopy');
+  (b.subProcedures || []).filter(x => SUB_PROCS.some(sp => sp.label === x)).forEach(toggleSub);
+  if (b.anesthesia === 'MAC' || b.anesthesia === 'GA') selectAnesthesia(b.anesthesia);
+  if (b.fluoroscope === 'จอง' || b.fluoroscope === 'ไม่จอง') selectFluoro(b.fluoroscope);
+
+  goToStep(3);
+  validateStep3();
+  loadSlots();      // เผื่อผู้ใช้กดเปลี่ยนวัน-เวลา (slot เดิมของตัวเองจะแสดงเป็น "เต็ม")
+}
+
+// ══════════════════════════════════════════════════════
 //  MY BOOKINGS
 // ══════════════════════════════════════════════════════
 async function loadMyBookings(showCancel = false) {
@@ -880,7 +969,7 @@ async function loadMyBookings(showCancel = false) {
     '<div style="text-align:center;padding:40px"><div class="spinner" style="margin:0 auto"></div></div>';
 
   try {
-    const res = await call('getUserBookings', S.userId);
+    const res = await Broncho.api('getUserBookings');
     if (!res.success) throw new Error(res.error);
 
     if (!res.bookings.length) {
@@ -894,36 +983,44 @@ async function loadMyBookings(showCancel = false) {
       return;
     }
 
+    S.myBookings = res.bookings;
     let html = '';
-    res.bookings.forEach(b => {
+    res.bookings.forEach((b, i) => {
       html += `
         <div class="booking-card">
-          <div class="bc-date">🗓 ${b.dateTime} น.</div>
-          <div class="bc-proc">🔬 ${b.procedure}</div>
-          <div class="bc-pt">👤 ${b.patientName} &nbsp;|&nbsp; HN: ${b.hn}</div>
+          <div class="bc-date">🗓 ${esc(b.dateTime)} น.</div>
+          <div class="bc-proc">🔬 ${esc(b.procedure)}</div>
+          <div class="bc-pt">👤 ${esc(b.patientName)} &nbsp;|&nbsp; HN: ${esc(b.hn)}</div>
           ${showCancel ? `
-          <button class="btn btn-danger" style="margin-top:10px;font-size:13px"
-            onclick="openCancelModal('${b.eventId}',${b.rowIndex},'${b.dateTime}','${b.procedure.replace(/'/g,"\\'")}')">
+          <button class="btn btn-danger btn-cancel-booking" data-idx="${i}" style="margin-top:10px;font-size:13px">
             ❌ ยกเลิกการจองนี้
-          </button>` : ''}
+          </button>` : `
+          <button class="btn btn-outline btn-edit-booking" data-idx="${i}" style="margin-top:10px;font-size:13px">
+            ✏️ แก้ไขการจองนี้
+          </button>`}
         </div>`;
     });
     document.getElementById('bookings-list').innerHTML = html;
+    document.querySelectorAll('.btn-cancel-booking').forEach(btn =>
+      btn.addEventListener('click', () => openCancelModal(S.myBookings[+btn.dataset.idx])));
+    document.querySelectorAll('.btn-edit-booking').forEach(btn =>
+      btn.addEventListener('click', () => startEdit(S.myBookings[+btn.dataset.idx])));
 
   } catch (err) {
     document.getElementById('bookings-list').innerHTML =
-      `<p style="color:var(--red);text-align:center;padding:20px">เกิดข้อผิดพลาด: ${err.message}</p>`;
+      `<div style="text-align:center;padding:20px"><p style="color:var(--red)">${esc(Broncho.errorText(err))}</p>
+       <button class="btn btn-outline" style="max-width:200px" onclick="loadMyBookings(${showCancel})">🔄 ลองใหม่</button></div>`;
   }
 }
 
 // ══════════════════════════════════════════════════════
 //  CANCEL BOOKING
 // ══════════════════════════════════════════════════════
-function openCancelModal(eventId, rowIndex, dateTime, procedure) {
-  S.cancelTarget = { eventId, rowIndex, dateTime, procedure };
+function openCancelModal(b) {
+  S.cancelTarget = { rowIndex: b.rowIndex };
   document.getElementById('modal-cancel-body').innerHTML =
-    `<strong>วันเวลา:</strong> ${dateTime} น.<br>` +
-    `<strong>หัตถการ:</strong> ${procedure}<br><br>` +
+    `<strong>วันเวลา:</strong> ${esc(b.dateTime)} น.<br>` +
+    `<strong>หัตถการ:</strong> ${esc(b.procedure)}<br><br>` +
     `<span style="color:var(--red)">⚠️ การยกเลิกนี้ไม่สามารถเรียกคืนได้</span>`;
   document.getElementById('modal-cancel').classList.remove('hidden');
 }
@@ -931,20 +1028,19 @@ function openCancelModal(eventId, rowIndex, dateTime, procedure) {
 async function doCancel() {
   const btn = document.getElementById('btn-do-cancel');
   btn.disabled = true; btn.textContent = '⏳ กำลังยกเลิก...';
-
-  const { eventId, rowIndex } = S.cancelTarget;
   try {
-    const res = await call('cancelBooking', eventId, S.userId, rowIndex);
+    const res = await Broncho.api('cancelBooking', { rowIndex: S.cancelTarget.rowIndex });
     closeModal('modal-cancel');
-
     if (res.success) {
-      alert('✅ ยกเลิกการจองสำเร็จ');
-      loadMyBookings(true);   // reload list
+      Broncho.toast('✅ ยกเลิกการจองสำเร็จ');
+      if (S.editTarget) { resetBook(); switchView('my'); }     // ยกเลิกจากหน้าแก้ไข → กลับรายการการจองของฉัน
+      else loadMyBookings(true);
     } else {
-      alert('เกิดข้อผิดพลาด: ' + res.error);
+      Broncho.toast(Broncho.errorText(new Error(res.error)), true);
     }
   } catch (err) {
-    alert('เกิดข้อผิดพลาด: ' + err.message);
+    closeModal('modal-cancel');
+    Broncho.toast(Broncho.errorText(err), true);
   } finally {
     btn.disabled = false; btn.textContent = 'ยืนยันยกเลิก';
   }
