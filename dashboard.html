@@ -638,10 +638,12 @@ function pdfProcedure(){
   w.document.write('<!DOCTYPE html><html lang="th"><head><meta charset="UTF-8"><title>รายงานการส่องกล้องหลอดลม</title>'
    + '<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Sarabun:wght@400;500;600;700;800&display=swap" rel="stylesheet">'
    + '<style>body{font-family:Sarabun,sans-serif;font-size:13px;margin:20px;color:#152238}h1{font-size:18px}.k{display:flex;gap:12px;margin:14px 0}.k div{flex:1;border:1px solid #d1dbe8;border-radius:8px;padding:10px;text-align:center}.k b{display:block;font-size:22px;color:#0056D2}table{width:100%;border-collapse:collapse;font-size:12px}th{background:#F5F7FA;text-align:left}th,td{border:1px solid #d1dbe8;padding:6px 8px}</style></head><body>'
-   + '<h1>รายงานการส่องกล้องหลอดลม</h1><div>'+(from?esc(fmtDay(from))+' – '+esc(fmtDay(to)):'ทั้งหมด')+' · พิมพ์ '+esc(new Date().toLocaleString('th-TH'))+'</div>'
+   + '<div style="border-bottom:2px solid #152238;padding-bottom:6px;margin-bottom:10px"><b style="font-size:15px">โรงพยาบาลมหาสารคาม</b><div style="font-size:12px;color:#51627a">หน่วยโรคระบบการหายใจและภาวะวิกฤติโรคระบบการหายใจ · แผนกอายุรกรรม</div></div>'
+   + '<h1>รายงานการส่องกล้องหลอดลม</h1><div>'+(from?esc(fmtDay(from))+' – '+esc(fmtDay(to)):'ทั้งหมด')+' · พิมพ์ '+esc(new Date().toLocaleString('th-TH'))+' · โดย '+esc((St.user&&St.user.name)||'')+'</div>'
    + '<div class="k"><div><b>'+s.totalCases+'</b>Case</div><div><b>'+s.totalRevenue.toLocaleString()+'</b>รายได้ (บาท)</div><div><b>'+s.avgDuration+'</b>เวลาเฉลี่ย (นาที)</div><div><b>'+s.fluoroUsed+'</b>ใช้ Fluoroscope</div></div>'
    + '<table><tr><th>วันที่</th><th>HN</th><th>ผู้ป่วย</th><th>Operation</th><th>แพทย์</th><th>เวลา</th><th>ราคา</th><th>Fluoro</th></tr>'+rows+'</table>'
-   + '<script>window.onload=function(){window.print()}<\/script></body></html>');
+   + '<div style="margin-top:14px;font-size:11.5px;color:#51627a">เอกสารนี้มีข้อมูลส่วนบุคคลของผู้ป่วย ใช้เพื่อการรักษาและการบริหารเท่านั้น ห้ามเปิดเผยนอกเหนือหน้าที่</div>'
+    + '<script>window.onload=function(){window.print()}<\/script></body></html>');
   w.document.close();
 }
 
@@ -680,12 +682,64 @@ async function loadDoctors(){
   }catch(_){}
 }
 
+/* ───────── จำแท็บ/ตัวกรอง เพื่อให้ปุ่มย้อนกลับจากหน้าบันทึก/จองคิว กลับมาที่เดิม ───────── */
+const VIEW_KEY = 'bp_dash';
+const VIEW_FIELDS = ['b-from','b-to','b-doc','b-proc','b-status','b-search','p-from','p-to','p-doc','p-proc','p-search'];
+function saveView(){
+  try{
+    const v = { tab:St.tab, q:St.q, b:St.b, p:St.p, scope:St.scope, selDay:St.selDay, f:{} };
+    VIEW_FIELDS.forEach(id => { const el = document.getElementById(id); if (el) v.f[id] = el.value; });
+    sessionStorage.setItem(VIEW_KEY, JSON.stringify(v));
+  }catch(_){}
+}
+function cameBack(){
+  try{ const n = performance.getEntriesByType('navigation')[0]; if (n && n.type === 'back_forward') return true; }catch(_){}
+  return location.hash === '#back';
+}
+function restoreView(){
+  if (!cameBack()) return null;
+  let v = null; try{ v = JSON.parse(sessionStorage.getItem(VIEW_KEY) || 'null'); }catch(_){}
+  if (!v || typeof v !== 'object') return null;
+  const hasPill = (k, val) => !!document.querySelector('#'+k+'-pills .pill[data-p="'+String(val).replace(/[^a-z0-9_-]/gi,'')+'"]');
+  ['q','b','p'].forEach(k => {
+    if (typeof v[k] !== 'string' || !hasPill(k, v[k])) return;
+    St[k] = v[k];
+    document.querySelectorAll('#'+k+'-pills .pill').forEach(x => x.classList.toggle('active', x.dataset.p === v[k]));
+    if (k !== 'q'){ const c = v[k]==='custom'; document.getElementById(k+'-fg-from').classList.toggle('hidden', !c); document.getElementById(k+'-fg-to').classList.toggle('hidden', !c); }
+  });
+  if (typeof v.scope === 'string'){ St.scope = v.scope; St.scopeInit = true; }
+  if (typeof v.selDay === 'string') St.selDay = v.selDay;
+  const f = v.f || {};
+  VIEW_FIELDS.forEach(id => {
+    if (id === 'b-doc' || id === 'p-doc' || typeof f[id] !== 'string') return;
+    const el = document.getElementById(id); if (el) el.value = f[id];
+  });
+  return v;
+}
+function restoreAfterLoad(v){                  // เรียกหลังรายชื่อแพทย์โหลดแล้ว
+  const f = v.f || {};
+  ['b-doc','p-doc'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el && typeof f[id] === 'string' && [...el.options].some(o => o.value === f[id])) el.value = f[id];
+  });
+  if (['booking','procedure'].includes(v.tab)) switchTab(v.tab);
+}
+window.addEventListener('pagehide', saveView);
+window.addEventListener('pageshow', e => {     // กลับมาจากแคชของเบราว์เซอร์ → โหลดข้อมูลใหม่ (สถานะ "รอบันทึก" อาจเปลี่ยน)
+  if (!e.persisted || !St.user) return;
+  if (St.tab !== 'booking') St.bData = null;
+  if (St.tab !== 'procedure') St.pData = null;
+  refresh(true);
+});
+
 (async () => {
   busy(true);
   try{
     const user = await Broncho.programStart({ page: 'dashboard' });
     St.user = user; setText('who', user.name);
+    const rv = restoreView();
     await Promise.all([loadQueue(true), loadDoctors()]);
+    if (rv) restoreAfterLoad(rv);
     setInterval(() => { if (!document.hidden) refresh(true); }, 5*60*1000);
   }catch(e){
     Broncho.toast(Broncho.errorText(e)+' — โหลดหน้าใหม่เพื่อลองอีกครั้ง', true);

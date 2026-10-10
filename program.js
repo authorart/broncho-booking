@@ -11,6 +11,11 @@
     { key: 'users',     label: '👥 จัดการผู้ใช้',      href: 'users.html',                             roles: ['admin'] },
   ];
   const ROLE_LABEL = { admin: 'Admin', doctor: 'แพทย์ (Doctor)', user: 'พยาบาล/ผู้ใช้ (User)' };
+  const PAGE_LABEL = { 'dashboard.html': 'Dashboard', 'record.html': 'บันทึกส่องกล้อง', 'users.html': 'จัดการผู้ใช้' };
+
+  const IDLE_MS = 15 * 60 * 1000;      // ไม่มีการใช้งานครบเวลานี้ → ออกจากระบบ
+  const WARN_MS = 60 * 1000;           // เตือนก่อนออกจากระบบ
+  const ACT_KEY = 'bp_act', IDLE_FLAG = 'bp_idle_out';
 
   const CSS = `
   .bp-nav{background:#052f43;color:#fff;position:sticky;top:0;z-index:200;font-family:'Sarabun',-apple-system,'Segoe UI',sans-serif}
@@ -56,6 +61,12 @@
   .bp-rules li{padding:2px 0}.bp-rules li.ok{color:#12945f}
   .bp-rules li::before{content:'○ '}.bp-rules li.ok::before{content:'✔ '}
   .bp-note{background:#fff7e0;border:1px solid #f3d38a;color:#7a5200;border-radius:10px;padding:9px 11px;font-size:12.5px;line-height:1.6;margin-bottom:6px}
+  .bp-back{background:rgba(255,255,255,.12);color:#fff;border:0;border-radius:999px;padding:6px 12px;font:inherit;font-size:13px;cursor:pointer;white-space:nowrap;flex-shrink:0;margin-right:4px}
+  .bp-back:hover{background:rgba(255,255,255,.24)}
+  .bp-bt{overflow:hidden;text-overflow:ellipsis}
+  .bp-count{font-size:36px;font-weight:700;text-align:center;color:#0b7fa8;margin:8px 0 0;line-height:1.2}
+  @media(max-width:720px){.bp-back{order:0;padding:6px 10px}.bp-brand{min-width:0}}
+  @media(max-width:480px){.bp-nav.has-back .bp-bt{display:none}}
   `;
 
   function injectCss() {
@@ -75,11 +86,14 @@
   // ── Login ─────────────────────────────────────────────────
   function loginFlow() {
     return new Promise(resolve => {
+      let idleOut = false;
+      try { idleOut = sessionStorage.getItem(IDLE_FLAG) === '1'; sessionStorage.removeItem(IDLE_FLAG); } catch (_) {}
       const ov = overlay(`
         <form class="bp-card" id="bp-lf" autocomplete="on">
           <div class="bp-logo">🫁</div>
           <h1>Bronchoscopy Program</h1>
           <div class="sub">ระบบจัดการห้องส่องกล้องหลอดลม<br>เข้าสู่ระบบด้วยชื่อผู้ใช้และรหัสผ่าน</div>
+          ${idleOut ? '<div class="bp-note">ออกจากระบบอัตโนมัติ เพราะไม่มีการใช้งานนาน 15 นาที (เพื่อความปลอดภัยของข้อมูลผู้ป่วย) กรุณาเข้าสู่ระบบอีกครั้ง</div>' : ''}
           <label for="bp-u">ชื่อผู้ใช้</label>
           <input id="bp-u" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" required>
           <label for="bp-p">รหัสผ่าน</label>
@@ -164,14 +178,81 @@
     });
   }
 
+  // ── ออกจากระบบเมื่อไม่มีการใช้งาน ───────────────────────────
+  function startIdleGuard() {
+    let last = Date.now(), warnOv = null, lastWrite = 0;
+    const readAct = () => { try { return +localStorage.getItem(ACT_KEY) || 0; } catch (_) { return 0; } };
+    const stamp = t => { lastWrite = t; try { localStorage.setItem(ACT_KEY, String(t)); } catch (_) {} };
+    const bump = () => {
+      if (warnOv) return;                                 // ระหว่างเตือน ต้องกด "ใช้งานต่อ" เท่านั้น
+      last = Date.now();
+      if (last - lastWrite > 5000) stamp(last);
+    };
+    ['pointerdown', 'keydown', 'scroll', 'touchstart', 'mousemove'].forEach(e =>
+      window.addEventListener(e, bump, { passive: true, capture: true }));
+
+    function logoutIdle() {
+      try { sessionStorage.setItem(IDLE_FLAG, '1'); } catch (_) {}
+      B.clearSession(); location.reload();
+    }
+    function closeWarn() { if (warnOv) { warnOv.remove(); warnOv = null; } }
+    function showWarn() {
+      warnOv = overlay(`
+        <div class="bp-card" role="alertdialog" aria-modal="true" aria-labelledby="bp-iw-t">
+          <div class="bp-logo">⏱</div>
+          <h1 id="bp-iw-t">ไม่มีการใช้งานสักครู่</h1>
+          <div class="sub">เพื่อความปลอดภัยของข้อมูลผู้ป่วย ระบบจะออกจากระบบอัตโนมัติใน</div>
+          <div class="bp-count" id="bp-iw-n" aria-live="polite">60</div>
+          <div class="sub" style="margin:0 0 8px">วินาที</div>
+          <button class="bp-go" id="bp-iw-go" type="button">ใช้งานต่อ</button>
+          <button class="bp-alt" id="bp-iw-out" type="button">ออกจากระบบตอนนี้</button>
+        </div>`, true);
+      $('bp-iw-go').focus();
+      $('bp-iw-go').onclick = () => { closeWarn(); last = Date.now(); stamp(last); };
+      $('bp-iw-out').onclick = () => { B.clearSession(); location.reload(); };
+    }
+    function check() {
+      const idle = Date.now() - Math.max(last, readAct());   // นับกิจกรรมจากแท็บอื่นของโปรแกรมนี้ด้วย
+      if (idle >= IDLE_MS) return logoutIdle();
+      if (idle >= IDLE_MS - WARN_MS) {
+        if (!warnOv) showWarn();
+        const n = $('bp-iw-n'); if (n) n.textContent = Math.max(0, Math.ceil((IDLE_MS - idle) / 1000));
+      } else if (warnOv) closeWarn();                        // แท็บอื่นมีการใช้งาน → ปิดคำเตือน
+    }
+    setInterval(check, 1000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+    bump();
+  }
+
+  // ── ปุ่มย้อนกลับ: กลับหน้าก่อนหน้าในโปรแกรม (ถ้าเปิดมาตรงๆ ให้กลับ Dashboard) ──
+  function backTarget(page) {
+    try {
+      const u = new URL(document.referrer), here = new URL(location.href);
+      const dir = p => p.replace(/[^/]*$/, '');
+      const key = x => x.pathname + x.search;
+      if (u.origin === here.origin && dir(u.pathname) === dir(here.pathname) && key(u) !== key(here)) {
+        const file = u.pathname.split('/').pop();
+        let label = PAGE_LABEL[file];
+        if (file === 'index.html') label = u.searchParams.get('page') === 'my' ? 'การจองของฉัน' : 'จองคิว';
+        if (label) {
+          if (file === 'dashboard.html') u.hash = '#back';    // ให้ Dashboard เปิดแท็บ/ตัวกรองเดิม
+          return { href: u.href, label };
+        }
+      }
+    } catch (_) {}
+    return page === 'dashboard' ? null : { href: 'dashboard.html', label: 'Dashboard' };
+  }
+
   // ── แถบเมนู ───────────────────────────────────────────────
   function mountNav(page, user) {
     document.getElementById('bp-nav') && document.getElementById('bp-nav').remove();
     const items = NAV.filter(n => n.roles.includes(user.role));
     const nav = document.createElement('nav');
-    nav.className = 'bp-nav'; nav.id = 'bp-nav';
+    const back = backTarget(page);
+    nav.className = 'bp-nav' + (back ? ' has-back' : ''); nav.id = 'bp-nav';
     nav.innerHTML = `<div class="bp-nav-in">
-      <div class="bp-brand">🫁 Bronchoscopy Program</div>
+      ${back ? `<button class="bp-back" id="bp-back" type="button" title="กลับไปหน้า ${esc(back.label)}">‹ ย้อนกลับ</button>` : ''}
+      <div class="bp-brand">🫁 <span class="bp-bt">Bronchoscopy Program</span></div>
       <div class="bp-tabs">${items.map(n => `<a class="bp-tab${n.key === page ? ' on' : ''}" href="${n.href}">${n.label}</a>`).join('')}</div>
       <div class="bp-user">
         <button class="bp-ubtn" id="bp-ubtn" type="button">👤 ${esc(user.name)}</button>
@@ -186,6 +267,12 @@
     const setH = () => document.documentElement.style.setProperty('--bpnav-h', nav.offsetHeight + 'px');
     setH(); window.addEventListener('resize', setH);
     if (window.ResizeObserver) new ResizeObserver(setH).observe(nav);
+    if (back) $('bp-back').onclick = () => {
+      if (history.length > 1) {
+        history.back();
+        setTimeout(() => { if (!document.hidden) location.href = back.href; }, 900);   // history.back() ไม่ไป (เช่น เปิดในแท็บใหม่) → ไปหน้าเดิมโดยตรง
+      } else location.href = back.href;
+    };
     const menu = $('bp-menu');
     $('bp-ubtn').onclick = e => { e.stopPropagation(); menu.classList.toggle('open'); };
     document.addEventListener('click', () => menu.classList.remove('open'));
@@ -211,6 +298,7 @@
       return new Promise(() => {});
     }
     mountNav(page, user);
+    startIdleGuard();
 
     // ซิงก์สิทธิ์ล่าสุดเบื้องหลัง (เช่น admin เปลี่ยน role) — ไม่บล็อกการโหลดหน้า
     setTimeout(async () => {
