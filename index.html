@@ -368,7 +368,7 @@
 
         <!-- Sub-procedures (Bronchoscopy only) -->
         <div class="form-group hidden" id="sub-proc-group">
-          <label class="form-label">หัตถการย่อย * (เลือกได้หลายอย่าง)</label>
+          <label class="form-label">หัตถการย่อย (ไม่บังคับ · เลือกได้หลายอย่าง)</label>
           <div class="sub-proc-grid">
             <div class="check-btn" id="cb-BAL" onclick="toggleSub('BAL')">
               <span class="ci">☐</span>BAL
@@ -814,7 +814,6 @@ function validateStep3() {
   const hn      = document.getElementById('inp-hn').value.trim();
   const patient = document.getElementById('inp-patient').value.trim();
   let ok = !!S.procedure && /^[A-Za-z0-9\-]{1,15}$/.test(hn) && !!patient && !!S.anesthesia && !!S.fluoroscope;
-  if (S.procedure === 'Bronchoscopy' && S.subProcs.length === 0) ok = false;
   document.getElementById('btn-show-confirm').disabled = !ok;
 }
 
