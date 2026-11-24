@@ -566,7 +566,9 @@ function renderBookingTable(){
   document.getElementById('b-body').innerHTML = rows.length ? rows.map(b => {
     const [c,l] = tag[b.status]||['',''];
     const rec = (b.status==='done' && !b.hasRecord)
-      ? ' <a class="tag t-w" style="text-decoration:none" title="เปิดหน้าบันทึกหัตถการของเคสนี้" href="record.html?date='+encodeURIComponent(b.dateISO)+'&ref='+encodeURIComponent(b.eventId||'')+'">รอบันทึก ›</a>' : '';
+      ? ' <a class="tag t-w" style="text-decoration:none" title="เปิดหน้าบันทึกหัตถการของเคสนี้" href="record.html?date='+encodeURIComponent(b.dateISO)+'&ref='+encodeURIComponent(b.eventId||'')+'">รอบันทึก ›</a>'
+      : (b.hasRecord && b.status!=='cancelled' && b.eventId)
+      ? ' <a class="tag t-done" style="text-decoration:none" title="เปิดบันทึกหัตถการของเคสนี้เพื่อแก้ไข" href="record.html?date='+encodeURIComponent(b.dateISO)+'&ref='+encodeURIComponent(b.eventId)+'">✏️ แก้ไขบันทึก</a>' : '';
     const why = (b.status==='cancelled' && b.cancelReason) ? '<div style="font-size:11.5px;color:var(--ink3);margin-top:3px">'+esc(b.cancelReason)+'</div>' : '';
     return '<tr><td style="white-space:nowrap;font-weight:600">'+esc(b.dateTime)+'</td><td>'+esc(b.doctor)+'</td>'
       + '<td><span class="tag '+(b.procedure.includes('Bronchoscopy')?'t-b':'t-p')+'">'+esc(b.procedure)+'</span></td>'

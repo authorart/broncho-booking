@@ -243,6 +243,7 @@ button{cursor:pointer;font-family:inherit}
           </div>
         </div>
         <div id="booking-preview" class="hidden" style="margin-top:14px"></div>
+        <div id="edit-banner" class="hidden" style="margin-top:12px;padding:10px 14px;border-radius:10px;background:#FFF8E1;border:1px solid #FFE082;color:#7A4F00;font-size:13.5px;line-height:1.5"></div>
         <div id="cancel-case-wrap" class="hidden" style="margin-top:12px">
           <button type="button" class="btn-cancel-case" onclick="openCancelCase()">🚫 ยกเลิกเคสนี้ (ไม่ได้ทำหัตถการ)</button>
         </div>
@@ -430,9 +431,12 @@ button{cursor:pointer;font-family:inherit}
       <div class="section-body">
         <div class="success-page">
           <div class="success-icon">✅</div>
-          <div class="success-title">บันทึกสำเร็จ!</div>
+          <div class="success-title" id="success-title">บันทึกสำเร็จ!</div>
           <div class="success-sub" id="success-detail">บันทึกข้อมูลการส่องกล้องเรียบร้อยแล้ว</div>
           <div style="margin-top:24px;display:flex;gap:10px;justify-content:center;flex-wrap:wrap">
+            <button class="btn" style="width:auto;padding:12px 28px;background:#fff;border:1.5px solid #FFB300;color:#7A4F00" onclick="editAgain()">
+              ✏️ แก้ไขข้อมูลนี้
+            </button>
             <button class="btn btn-primary" style="width:auto;padding:12px 28px" onclick="resetForm()">
               📋 บันทึก Case ใหม่
             </button>
@@ -479,6 +483,8 @@ const S = {
   anesthesia:  null,
   fluoroscope: null,
   priceManual: false,
+  editing:     null,   // { recRow, stamp, bookingRef } = กำลังแก้ไขบันทึกเดิม
+  lastSaved:   null,   // บันทึกล่าสุดที่เพิ่งบันทึก (ใช้กด "แก้ไขข้อมูลนี้")
 };
 
 // ══════════════════════════════════════════════
@@ -545,6 +551,8 @@ async function onDateChange() {
   const [y,m,d] = dateISO.split('-');
   const dateTH  = `${d}/${m}/${y}`;
 
+  if (S.editing) clearCaseFields();
+  setEditMode(null);
   S.selectedCase = null; S.bookings = [];
   clearPrefill();
   document.getElementById('booking-preview').classList.add('hidden');
@@ -571,7 +579,7 @@ async function onDateChange() {
     r.bookings.forEach((b, i) => {
       const opt = document.createElement('option');
       opt.value = i;
-      opt.textContent = `${b.dateTime.split(' ')[1]} น.  |  ${b.procedure}  |  HN: ${b.hn}`;
+      opt.textContent = `${b.dateTime.split(' ')[1]} น.  |  ${b.procedure}  |  HN: ${b.hn}` + (b.record ? '  |  ✓ บันทึกแล้ว (แก้ไขได้)' : '');
       sel.appendChild(opt);
     });
     sel.disabled = false;
@@ -592,11 +600,14 @@ async function onDateChange() {
 
 function onCaseSelect() {
   const idx = document.getElementById('sel-case').value;
+  if (S.editing) clearCaseFields();               // ออกจากโหมดแก้ไข → ล้างข้อมูลของเคสเดิม
+  setEditMode(null);
   if (idx === '') {
     document.getElementById('booking-preview').classList.add('hidden');
     document.getElementById('cancel-case-wrap').classList.add('hidden');
     S.selectedCase = null;
     clearPrefill();
+    validateForm();
     return;
   }
 
@@ -604,8 +615,91 @@ function onCaseSelect() {
   S.selectedCase = b;
   prefillFromBooking(b);
   showBookingPreview(b);
-  document.getElementById('cancel-case-wrap').classList.remove('hidden');
+  if (b.record) {                                 // เคสนี้บันทึกแล้ว → เปิดข้อมูลเดิมให้แก้ไข
+    fillFromRecord(b.record);
+    setEditMode(b.record);
+    document.getElementById('cancel-case-wrap').classList.add('hidden');
+  } else {
+    document.getElementById('cancel-case-wrap').classList.remove('hidden');
+  }
   validateForm();
+}
+
+// ══════════════════════════════════════════════
+//  EDIT MODE (แก้ไขบันทึกที่บันทึกไปแล้ว)
+// ══════════════════════════════════════════════
+function setEditMode(rec) {
+  S.editing = rec ? { recRow: rec.recRow, stamp: rec.stamp, bookingRef: rec.bookingRef || '' } : null;
+  const ban = document.getElementById('edit-banner');
+  if (rec) {
+    let t = '✏️ <b>เคสนี้บันทึกข้อมูลแล้ว</b> — ข้อมูลด้านล่างคือข้อมูลที่บันทึกไว้ แก้ไขแล้วกด "บันทึกการแก้ไข"';
+    if (rec.recordedBy) t += '<br>ผู้บันทึก: ' + esc(rec.recordedBy);
+    if (rec.editedBy)   t += ' · แก้ไขล่าสุดโดย: ' + esc(rec.editedBy) + (rec.editedAt ? ' (' + esc(rec.editedAt) + ')' : '');
+    ban.innerHTML = t;
+    ban.classList.remove('hidden');
+  } else {
+    ban.classList.add('hidden');
+    ban.innerHTML = '';
+  }
+  document.getElementById('btn-submit').textContent = rec ? '💾 บันทึกการแก้ไข' : '💾 บันทึกข้อมูล';
+}
+
+function markToggles(anesthesia, fluoro) {
+  document.querySelectorAll('#tg-anesthesia .toggle-btn').forEach(btn =>
+    btn.classList.toggle('active', !!anesthesia && btn.textContent.trim() === anesthesia));
+  document.querySelectorAll('#tg-fluoro .toggle-btn').forEach(btn => {
+    const label = btn.textContent.includes('ใช้') && !btn.textContent.includes('ไม่') ? 'ใช้' : 'ไม่ใช้';
+    btn.classList.toggle('active', !!fluoro && label === fluoro);
+  });
+}
+
+function fillFromRecord(r) {
+  const set = (id, v) => { const el = document.getElementById(id); if (el) { el.value = v == null ? '' : v; el.classList.remove('prefilled'); } };
+  set('inp-hn', r.hn); set('inp-patient', r.patientName); set('inp-doctor', r.doctor);
+  set('inp-operation', r.operation); set('inp-prediag', r.preDiagnosis); set('inp-postdiag', r.postDiagnosis);
+  const pre = document.getElementById('sel-prefix');
+  if (r.namePrefix && ![...pre.options].some(o => o.value === r.namePrefix)) {
+    const o = document.createElement('option'); o.textContent = r.namePrefix; pre.appendChild(o);
+  }
+  pre.value = r.namePrefix || '';
+  set('inp-nurses', r.nurseCount); set('inp-anesth-nurse', r.anesthesiaNurse);
+  set('inp-tstart', r.timeStart); set('inp-tend', r.timeEnd); calcDuration();
+  set('inp-scope', r.bronchoscope); set('inp-washer', r.scopeWasher);
+  set('inp-remark', r.remark); set('inp-recorder', r.recordedBy);
+  S.anesthesia  = r.anesthesicMode || null;
+  S.fluoroscope = r.fluoroscope || null;
+  markToggles(S.anesthesia, S.fluoroscope);
+  S.priceManual = true;                           // คงราคาที่บันทึกไว้ (แก้ตัวเลขได้)
+  set('inp-price', r.price);
+  document.getElementById('price-val').textContent = (Number(r.price) || 0).toLocaleString();
+  document.getElementById('price-breakdown').textContent = '(ราคาที่บันทึกไว้ — แก้ไขได้ในช่องด้านล่าง)';
+}
+
+// ล้างข้อมูลเฉพาะเคส (ใช้เมื่อออกจากโหมดแก้ไข ไม่ให้ข้อมูลเคสเดิมติดไปเคสอื่น)
+function clearCaseFields() {
+  ['inp-hn','inp-patient','inp-doctor','inp-operation','inp-prediag','inp-postdiag','inp-anesth-nurse',
+   'inp-tstart','inp-tend','inp-duration','inp-scope','inp-washer','inp-remark','inp-recorder','inp-price'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) { el.value = ''; el.classList.remove('prefilled'); }
+  });
+  document.getElementById('sel-prefix').value = '';
+  document.getElementById('inp-nurses').value = '2';
+  S.anesthesia = null; S.fluoroscope = null; S.priceManual = false;
+  markToggles(null, null);
+  document.getElementById('price-val').textContent = '—';
+  document.getElementById('price-breakdown').textContent = '';
+  memApply();                                     // เติมค่าที่จำไว้ (ผู้บันทึก/ผู้ล้างกล้อง ฯลฯ) กลับมา
+}
+
+// จากหน้า "บันทึกสำเร็จ" → กลับไปแก้ไขข้อมูลที่เพิ่งบันทึก
+function editAgain() {
+  if (!S.lastSaved) return;
+  setEditMode(S.lastSaved);
+  document.getElementById('success-page').classList.add('hidden');
+  document.getElementById('form-page').classList.remove('hidden');
+  document.getElementById('cancel-case-wrap').classList.add('hidden');
+  validateForm();
+  window.scrollTo(0, 0);
 }
 
 function showBookingPreview(b) {
@@ -774,11 +868,15 @@ async function submitRecord() {
   const dateTH  = `${d}/${m}/${y}`;
 
   const price = parseFloat(document.getElementById('inp-price').value) || 0;
+  const editing = S.editing;
 
   try {
-    const r = await api('saveProcedureRecord', {
+    const payload = {
       procedureDate:   dateTH,
-      bookingRef:      S.selectedCase ? (S.selectedCase.eventId || String(S.selectedCase.rowIndex)) : '',
+      bookingRef:      editing ? editing.bookingRef
+                     : S.selectedCase ? (S.selectedCase.eventId || String(S.selectedCase.rowIndex)) : '',
+      recRow:          editing ? editing.recRow : '',
+      stamp:           editing ? editing.stamp  : '',
       hn:              document.getElementById('inp-hn').value.trim(),
       namePrefix:      document.getElementById('sel-prefix').value,
       patientName:     document.getElementById('inp-patient').value.trim(),
@@ -797,10 +895,22 @@ async function submitRecord() {
       scopeWasher:     document.getElementById('inp-washer').value.trim(),
       remark:          document.getElementById('inp-remark').value.trim(),
       recordedBy:      document.getElementById('inp-recorder').value.trim(),
-    });
+    };
+    const r = await api('saveProcedureRecord', payload);
 
     if (r.success) {
       memRemember();
+      // เก็บข้อมูลที่บันทึกไว้ เพื่อกด "แก้ไขข้อมูลนี้" หรือเลือกเคสนี้อีกครั้งแล้วแก้ไขต่อได้
+      const prev = (editing && S.selectedCase && S.selectedCase.record) || {};
+      S.lastSaved = Object.assign({}, payload, {
+        recRow: r.recRow, stamp: r.stamp,
+        recordedBy: editing ? (prev.recordedBy || payload.recordedBy) : payload.recordedBy,
+        editedBy: editing ? ((Broncho.getSession() || {}).user || {}).name || '' : '',
+        editedAt: '',
+      });
+      if (S.selectedCase) S.selectedCase.record = S.lastSaved;
+      setEditMode(null);
+      document.getElementById('success-title').textContent = editing ? 'แก้ไขสำเร็จ!' : 'บันทึกสำเร็จ!';
       const pname = document.getElementById('inp-patient').value.trim();
       const hn    = document.getElementById('inp-hn').value.trim();
       document.getElementById('success-detail').textContent =
@@ -813,7 +923,7 @@ async function submitRecord() {
   } catch(err) {
     showErr('⚠️ ' + Broncho.errorText(err) + ' — ตรวจสอบก่อนบันทึกซ้ำ');
   } finally {
-    btn.disabled = false; btn.textContent = '💾 บันทึกข้อมูล';
+    btn.disabled = false; btn.textContent = S.editing ? '💾 บันทึกการแก้ไข' : '💾 บันทึกข้อมูล';
   }
 }
 
@@ -882,6 +992,7 @@ async function submitCancelCase() {
 // ══════════════════════════════════════════════
 function resetForm() {
   S.selectedCase = null; S.anesthesia = null; S.fluoroscope = null; S.priceManual = false;
+  S.lastSaved = null; setEditMode(null);
 
   ['inp-hn','inp-patient','inp-doctor','inp-operation','inp-prediag',
    'inp-postdiag','inp-anesth-nurse','inp-tstart','inp-tend',
